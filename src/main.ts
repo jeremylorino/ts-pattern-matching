@@ -4,12 +4,30 @@ export type ListUpperBound<a, b> = b extends a ? b : a extends b ? a : never;
 
 export type ListLowerBound<a, b> = any extends a ? never : a extends b ? never : a;
 
+export type Dictionary<T = any> = {
+    [index: string]: T;
+};
+export type KeyValuePair<V> = { name: string | (() => string); value: V | (() => V) };
+function isKeyValuePair<V = any>(value: any): value is KeyValuePair<V> {
+    return Reflect.has(value, 'name') && Reflect.has(value, 'value');
+}
+
+export type DictionaryRecord<T> = {
+    [P in keyof T]?: T[P] extends (name: string) => infer U
+        ? U extends KeyValuePair<infer V>
+            ? { [key: string]: V }
+            : Dictionary<U>
+        : T[P];
+};
+
 export type Pattern<a> = a extends number
     ? a | NumberConstructor
     : a extends string
     ? a | StringConstructor
     : a extends boolean
     ? a | BooleanConstructor
+    : a extends object
+    ? DictionaryRecord<a> | ObjectConstructor
     : a extends Array<infer aa>
     ? [Pattern<aa>]
     : { [k in keyof a]?: Pattern<a[k]> };
@@ -20,6 +38,10 @@ export type InvertPattern<p> = p extends NumberConstructor
     ? string
     : p extends BooleanConstructor
     ? boolean
+    : p extends DictionaryRecord<infer pp>
+    ? pp
+    : p extends ObjectConstructor
+    ? object
     : p extends Array<infer pp>
     ? InvertPattern<pp>[]
     : { [k in keyof p]: InvertPattern<p[k]> };
@@ -32,7 +54,7 @@ export type InvertPattern<p> = p extends NumberConstructor
  */
 export const match = <a, b = any>(value: a) => builder<a, b>(value)();
 
-const builder = <a, b, c = null>(value: a) => (
+export const builder = <a, b, c = null>(value: a) => (
     otherwise: () => c = () => null,
     patterns: Array<[Pattern<a>, Fun<a, boolean>, Fun<a, any>, "default" | "negated"]> = []
 ) => ({
@@ -96,7 +118,7 @@ const builder = <a, b, c = null>(value: a) => (
     },
 });
 
-const match_pattern = <a>(value: a, pattern: Pattern<a>): boolean => {
+const match_pattern = <a>(value: a, pattern: Pattern<a>, context?: any): boolean => {
     if (pattern === String) {
         return typeof value === "string";
     }
@@ -110,10 +132,27 @@ const match_pattern = <a>(value: a, pattern: Pattern<a>): boolean => {
         if (!Array.isArray(value)) return false;
         return value.every(v => match_pattern(v, pattern[0]));
     }
-    if (typeof value !== "object") {
+    if (typeof value !== "object" && typeof value !== "function") {
         return value === pattern;
     }
     return Object.keys(pattern).every(k => {
-        return pattern[k] === undefined ? false : match_pattern(value[k], pattern[k]);
+        if(pattern[k] === undefined) {
+            return false;
+        }
+
+        if(typeof value[k] === "function") {
+            return match_pattern(value[k], pattern[k], value);
+        }
+        
+        if(typeof value === "function") {
+            const valueFunction = context ? value.apply(context, [k]) : value(k);
+            if(isKeyValuePair(valueFunction)){
+                return match_pattern(valueFunction.value(), pattern[k]);
+            }
+
+            return match_pattern(valueFunction, pattern[k]);
+        }
+
+        return match_pattern(value[k], pattern[k]);
     });
 };

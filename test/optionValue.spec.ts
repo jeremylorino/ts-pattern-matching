@@ -1,6 +1,6 @@
 import "mocha";
 import { expect } from "chai";
-import { match } from "../src/main";
+import { match, InvertPattern, Pattern, ListUpperBound, Fun } from '../src/main';
 
 describe("Option Example", () => {
     type Option<a = any> = { kind: "none" } | { kind: "some"; value: a };
@@ -57,7 +57,11 @@ describe("Array Example", () => {
             { Id: 1, Title: "title" },
             { Id: 2, Title: "title2" },
         ];
-
+        let p:any = [{ Id: Number, Title: String }];
+        let pattern: Pattern<typeof p>;
+        let invertP: InvertPattern<typeof pattern>;
+        let upper: ListUpperBound<typeof p, InvertPattern<typeof pattern>>;
+        let fun: Fun<ListUpperBound<typeof p, InvertPattern<typeof pattern>>, any>;
         const result = match<any, Blog[] | Error>(blogOverviewResponse)
             .with([{ Id: Number, Title: String }], r => r.map(b => ({ id: b.Id, title: b.Title })))
             .with({ errorMessage: String }, r => new Error(r.errorMessage))

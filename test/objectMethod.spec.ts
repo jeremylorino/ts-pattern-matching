@@ -1,13 +1,6 @@
-import {
-    match,
-    Dictionary,
-    DictionaryRecord,
-    Pattern,
-    InvertPattern,
-    ListUpperBound,
-    Fun,
-    match_pattern,
-} from "./main";
+import "mocha";
+import { expect } from "chai";
+import { match, Dictionary } from "../src/main";
 
 type FieldType =
     | "boolean"
@@ -120,26 +113,6 @@ class Item {
     private findFieldByMetadata<T = any>(name: string) {
         return this.fields().find(f => f.metadata && f.metadata.name === name) as Field<T> | undefined;
     }
-
-    private _getJSON<T>(node: Item | T[] | Dictionary | Primitive) {
-        if (Array.isArray(node)) {
-            return node.map(v => this._getJSON(v));
-        } else if (node instanceof Item) {
-            let json: Dictionary = {};
-            node.fields().forEach(f => {
-                json[f.name()] = this._getJSON(node.field(f.name()).value());
-            });
-            return json;
-        } else if (isObject(node)) {
-            return mapObject(node, v => this._getJSON(v));
-        } else {
-            return node;
-        }
-    }
-
-    public toJSON(): Dictionary {
-        return this._getJSON(this);
-    }
 }
 
 const fieldMetadata: Dictionary<FieldMetadataObject> = {
@@ -190,25 +163,12 @@ const items = [
     ),
 ];
 
-// console.log(items);
+describe("Object Method Match", () => {
+    it("should match return of value method", () => {
+        const result = match(items[0])
+            .with({ field: { Make: "BMW" } }, o => o.field<string>("Make").value())
+            .run();
 
-// const result1 = match(items[0])
-//     .with({ field: { Make: "BMW" } }, o => o.fields())
-//     .run();
-const result2 = items
-    .map(v =>
-        match(v)
-            .withWhen(
-                { field: { Make: "BMW" } },
-                o =>
-                    !!match(o)
-                        .with({ field: { Year: 2007 } }, o => o)
-                        .run(),
-                o => o
-            )
-            .run()
-    )
-    .filter(v => v);
-
-// console.log(result1);
-console.log(result2);
+        expect(result).to.equal("BMW");
+    });
+});
